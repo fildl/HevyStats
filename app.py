@@ -56,9 +56,9 @@ total_workouts = filtered_df['start_time'].dt.date.nunique()
 total_sets = len(filtered_df)
 avg_sets_workout = total_sets / total_workouts if total_workouts > 0 else 0
 
-col1.metric("Total Volume", f"{total_vol:,.1f} t")
+col1.metric("Total Volume", f"{total_vol:.1f} t")
 col2.metric("Workouts", total_workouts)
-col3.metric("Total Sets", f"{total_sets:,}")
+col3.metric("Total Sets", f"{total_sets}")
 col4.metric("Avg Sets/Workout", f"{avg_sets_workout:.1f}")
 
 st.divider()
