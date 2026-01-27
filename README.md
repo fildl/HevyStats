@@ -1,6 +1,6 @@
-# HevyStats 🏋️‍♂️
+# HevyStats
 
-**HevyStats** is a personal analytics dashboard for your [Hevy](https://hevy.com/) workout data. It provides deep insights into your training volume, muscle balance, and progress over time, going beyond the standard analytics.
+**HevyStats** is a personal analytics dashboard for [Hevy](https://hevy.com/) workout data. It provides insights into your training volume, muscle balance, and progress over time.
 
 ## Features (Planned)
 
