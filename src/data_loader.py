@@ -11,6 +11,7 @@ class HevyDataLoader:
         self.bodyweight_data = None
         self.phases_data = None
         self.gym_data = None
+        self.routines_data = None
 
     def load_all(self):
         """Loads all necessary data files."""
@@ -20,6 +21,7 @@ class HevyDataLoader:
         self.load_bodyweight_data(self.data_dir / 'bodyweight_data.csv')
         self.load_body_composition_phases(self.data_dir / 'body_composition_phases.csv')
         self.load_gym_data(self.data_dir / 'gyms.csv')
+        self.load_routine_data(self.data_dir / 'routine.csv')
         
         self.process_data()
 
@@ -69,6 +71,15 @@ class HevyDataLoader:
             self.gym_data = pd.read_csv(csv_path)
             self.gym_data['date'] = pd.to_datetime(self.gym_data['date'])
             self.gym_data = self.gym_data.sort_values('date')
+
+    def load_routine_data(self, csv_path):
+        if csv_path.exists():
+            self.routines_data = pd.read_csv(csv_path)
+            # Strip whitespace from column names
+            self.routines_data.columns = self.routines_data.columns.str.strip()
+            
+            self.routines_data['date'] = pd.to_datetime(self.routines_data['date'])
+            self.routines_data = self.routines_data.sort_values('date')
 
     def get_bodyweight_for_date(self, workout_date):
         """Get bodyweight for a given workout date (uses most recent available)"""
@@ -128,6 +139,76 @@ class HevyDataLoader:
             self.workout_data['gym'] = self.workout_data['start_time'].apply(get_gym)
         else:
             self.workout_data['gym'] = 'Unknown'
+
+        # Routine Mapping (similar logic to Gym Mapping)
+        if self.routines_data is not None and not self.routines_data.empty:
+            self.routines_data = self.routines_data.sort_values('date')
+            
+            def get_routine_info(dt):
+                # dt is the workout timestamp
+                candidates = self.routines_data[self.routines_data['date'] <= dt]
+                if candidates.empty:
+                    # Before first routine or no routine data
+                    return None
+                
+                # Get the last matching routine (current one)
+                current_routine = candidates.iloc[-1]
+                
+                # Determine display label
+                label = current_routine['routine_label'] if pd.notna(current_routine.get('routine_label')) and str(current_routine.get('routine_label')).strip() != '' else str(current_routine['routine_id'])
+                
+                return {
+                    'routine_id': current_routine['routine_id'],
+                    'routine_label': current_routine.get('routine_label'), # Keep raw label too
+                    'display_label': label,
+                    'start_date': current_routine['date']
+                }
+
+            # We can't easily vectorise returning a dict, so we might need a couple of applies or just one that returns the ID/Label, 
+            # but we need the date range for the UI filter.
+            # Let's assign the routine_id mainly, and we can look up details later or put them in columns.
+            
+            # Actually, let's just create a 'routine_display' column for easy filtering
+            # But the user wants the filter to show the date range too.
+            # So best is to have a column 'routine_key' that links to the routine entry, or just put the full string.
+            
+            # Let's iterate to build a list of results to assign
+            routine_displays_list = []
+            
+            # Pre-calculate routine display strings to avoid doing it per row if possible, 
+            # but mapping per row is easier logic.
+            
+            # Optimisation: `searchsorted` style lookup
+            # But let's stick to apply for simplicity given dataset size is small.
+            
+            def get_fmt_routine(dt):
+                cand = self.routines_data[self.routines_data['date'] <= dt]
+                if cand.empty:
+                    return "Unknown"
+                
+                curr = cand.iloc[-1]
+                
+                # Find end date (next routine start date)
+                next_routines = self.routines_data[self.routines_data['date'] > curr['date']]
+                if next_routines.empty:
+                    end_date = "Present"
+                else:
+                    # End date is day before next routine? Or just next routine date? 
+                    # Usually "Until X"
+                    end_str = next_routines.iloc[0]['date'].strftime('%Y-%m-%d')
+                    end_date = end_str
+                
+                start_str = curr['date'].strftime('%Y-%m-%d')
+                
+                label = curr['routine_label'] if pd.notna(curr.get('routine_label')) and str(curr.get('routine_label')).strip() != '' else str(curr['routine_id'])
+                
+                return f"{label} ({start_str} - {end_date})"
+
+            self.workout_data['routine_name'] = self.workout_data['start_time'].apply(get_fmt_routine)
+
+        else:
+            self.workout_data['routine_name'] = 'Unknown'
+
 
         # 4. Volume Calculation
         self.workout_data['workout_date'] = self.workout_data['start_time'].dt.date

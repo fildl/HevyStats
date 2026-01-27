@@ -35,19 +35,47 @@ st.sidebar.markdown("Advanced analytics for your Hevy workouts.")
 available_years = sorted(df['start_time'].dt.year.unique(), reverse=True)
 selected_year = st.sidebar.selectbox("Select Year", ["All Time"] + available_years)
 
+# Routine Filter
+# Get unique routines sorted by most recent first
+# We group by routine_name and take the min start_time to find the routine's start, then sort descending
+routine_order = df.groupby('routine_name')['start_time'].min().sort_values(ascending=False).index.tolist()
+available_routines = ["All Splits"] + routine_order
+
+# Default index logic: Select the most recent split (index 1) if available
+default_idx = 1 if len(available_routines) > 1 else 0
+selected_routine = st.sidebar.selectbox("Select Split", available_routines, index=default_idx)
+
 filter_year = None if selected_year == "All Time" else selected_year
+filter_routine = None if selected_routine == "All Splits" else selected_routine
 
 # Filter dataset for calculations
+# Start with full dataset
+filtered_df = df.copy()
+
+# Apply Year Filter
 if filter_year:
-    filtered_df = df[df['start_time'].dt.year == filter_year].copy()
-else:
-    filtered_df = df.copy()
+    filtered_df = filtered_df[filtered_df['start_time'].dt.year == filter_year]
+
+# Apply Routine Filter
+if filter_routine:
+    filtered_df = filtered_df[filtered_df['routine_name'] == filter_routine] 
+
 
 # Visualizer
 viz = WorkoutVisualizer(filtered_df, bw_df, phases_df)
 
 # Main Dashboard
-st.title("Dashboard")
+st.title("Hevy Stats")
+
+# Show active filters
+active_filters = []
+if filter_year:
+    active_filters.append(f"**Year:** {filter_year}")
+if filter_routine:
+    active_filters.append(f"**Split:** {filter_routine}")
+
+if active_filters:
+    st.markdown(f"#### {' • '.join(active_filters)}")
 
 # KPI Row
 col1, col2, col3, col4, col5, col6 = st.columns(6)
