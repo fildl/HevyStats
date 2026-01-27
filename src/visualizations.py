@@ -201,6 +201,164 @@ class WorkoutVisualizer:
 
         return fig
 
+    def create_monthly_volume_per_workout_chart(self, year=None, filter_group=None):
+        """
+        Creates a stacked bar chart of monthly volume per workout (Intensity).
+        (Total Volume / Number of Workouts in that month)
+        """
+        plot_data = self.df.copy()
+        if year:
+            plot_data = plot_data[plot_data['start_time'].dt.year == year]
+
+        if filter_group:
+            plot_data['mapped_group'] = plot_data['muscle_group'].replace(GROUP_MAPPING)
+            plot_data = plot_data[plot_data['mapped_group'] == filter_group]
+        
+        if plot_data.empty:
+            return None
+
+        # --- 1. Data Prep ---
+        plot_data['month_date'] = plot_data['start_time'].dt.to_period('M').dt.start_time
+        
+        # Calculate Workouts per Month (denominator)
+        # We count unique workout dates per month from the ORIGINAL filtered dataframe (before muscle grouping?)
+        # Actually, if we filter by muscle group (e.g. Arms), do we divide by TOTAL workouts that month, 
+        # or only workouts that included Arms? Usually TOTAL workouts gives "Volume load contribution to the session".
+        # But if I didn't train Arms today, it shouldn't dilute the average of Arm days?
+        # Let's stick to: Average Volume *per session where that muscle was trained*? 
+        # Or Average Volume *per calendar workout*?
+        # The user said "Volume divided by number of workouts". Ref1 likely did Total Volume / Total Workouts.
+        # Let's count unique start_times involved in this slice.
+        
+        workouts_per_month = plot_data.groupby('month_date')['start_time'].nunique().reset_index(name='workout_count')
+        
+        # Aggregate Volume
+        group_col = 'muscle_group' if filter_group else 'major_group'
+        if not filter_group:
+             plot_data['major_group'] = plot_data['muscle_group'].replace(GROUP_MAPPING)
+        
+        monthly_vol = plot_data.groupby(['month_date', group_col])['volume'].sum().reset_index()
+        
+        # Merge to get denominator
+        merged = pd.merge(monthly_vol, workouts_per_month, on='month_date')
+        merged['avg_vol_k'] = (merged['volume'] / merged['workout_count']) / 1000.0
+        
+        # --- 2. Plot ---
+        color_map = MUSCLE_GROUP_COLORS
+        orders = {group_col: MUSCLE_GROUP_ORDER} if not filter_group else {} # Use strict order for Major
+
+        fig = px.bar(
+            merged,
+            x='month_date',
+            y='avg_vol_k',
+            color=group_col,
+            title='Avg Volume per Workout (tonnes) & Bodyweight (kg)',
+            color_discrete_map=color_map,
+            category_orders=orders
+        )
+
+        # --- 3. Bodyweight Overlay ---
+        if self.bodyweight_df is not None and not self.bodyweight_df.empty:
+            min_date = plot_data['start_time'].min()
+            max_date = plot_data['start_time'].max()
+            bw_data = self.bodyweight_df[
+                (self.bodyweight_df['date'] >= min_date) & 
+                (self.bodyweight_df['date'] <= max_date)
+            ].copy()
+
+            if not bw_data.empty:
+                bw_data['month_date'] = bw_data['date'].dt.to_period('M').dt.start_time
+                monthly_bw = bw_data.groupby('month_date')['weight_kg'].mean().reset_index()
+                
+                fig.add_trace(
+                    go.Scatter(
+                        x=monthly_bw['month_date'],
+                        y=monthly_bw['weight_kg'],
+                        name='Avg Bodyweight',
+                        mode='lines+markers',
+                        line=dict(color='white', width=3),
+                        marker=dict(size=6, color='white'),
+                        yaxis='y2'
+                    )
+                )
+
+                fig.update_layout(
+                    yaxis2=dict(
+                        title='Bodyweight (kg)',
+                        overlaying='y',
+                        side='right',
+                        showgrid=False
+                    )
+                )
+
+        # --- 4. Layout ---
+        tick_format = "%b" if year else "%b %Y"
+        fig.update_layout(
+            autosize=True,
+            xaxis=dict(title=None, tickformat=tick_format, dtick="M1"),
+            yaxis_title='Avg Volume / Workout (tonnes)',
+            legend_title_text='Muscle Group',
+            hovermode='x unified',
+            legend=dict(orientation="h", y=1.15, x=1, xanchor="right")
+        )
+        
+        return fig
+
+    def create_exercise_progression_chart(self, exercise_name):
+        """
+        Creates a progression chart for a specific exercise.
+        Plots:
+        1. Scatter points: Total Volume for that exercise in every workout.
+        2. Line: Connecting 'Record' points (Cumulative Max Volume).
+        """
+        if not exercise_name:
+            return None
+            
+        ex_data = self.df[self.df['exercise_title'] == exercise_name].copy()
+        if ex_data.empty:
+            return None
+            
+        # Group by workout (start_time) to get session volume for this exercise
+        session_vol = ex_data.groupby('start_time')['volume'].sum().reset_index()
+        session_vol = session_vol.sort_values('start_time')
+        
+        # Calculate Cumulative Max (Records)
+        session_vol['record_volume'] = session_vol['volume'].cummax()
+        
+        fig = go.Figure()
+        
+        # 1. All Workouts (Scatter)
+        fig.add_trace(go.Scatter(
+            x=session_vol['start_time'],
+            y=session_vol['volume'],
+            mode='markers',
+            name='Session Volume',
+            marker=dict(color='#BDADEA', size=8, opacity=0.6)
+        ))
+        
+        # 2. Record Progression (Line)
+        # We construct a step line for records
+        fig.add_trace(go.Scatter(
+            x=session_vol['start_time'],
+            y=session_vol['record_volume'],
+            mode='lines',
+            name='Volume Record',
+            line=dict(color='#ef476f', width=2, shape='hv'), # hv shape makes it a step function
+            hoverinfo='skip'
+        ))
+
+        # Highlights formatting
+        fig.update_layout(
+            title=f"Volume Progression: {exercise_name}",
+            xaxis_title=None,
+            yaxis_title='Volume (kg)',
+            hovermode='x unified',
+            showlegend=True,
+            legend=dict(orientation="h", y=1.1, x=1, xanchor="right")
+        )
+        
+        return fig
+
     def create_muscle_group_distribution(self, year=None):
         """Pie chart of volume by muscle group"""
         plot_data = self.df.copy()

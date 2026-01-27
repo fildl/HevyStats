@@ -84,11 +84,29 @@ if len(unknown_exercises) > 0:
 # Charts
 st.subheader("Training Volume History")
 
+# Metric Selection
+metric = st.radio(
+    "Metric", 
+    ["Total Volume", "Avg Volume per Workout"], 
+    horizontal=True,
+    label_visibility="collapsed"
+)
+
 # Define tabs: Overall + specific major groups that have sub-muscles
 tabs = st.tabs(["Overall", "Arms", "Legs", "Back", "Chest", "Shoulders", "Core"])
 
+def get_chart(viz_obj, metric_name, year, group=None):
+    if metric_name == "Total Volume":
+        if group:
+            return viz_obj.create_monthly_specific_muscle_chart(year, filter_group=group)
+        else:
+            return viz_obj.create_monthly_volume_chart(year)
+    else:
+        # Avg per Workout
+        return viz_obj.create_monthly_volume_per_workout_chart(year, filter_group=group)
+
 with tabs[0]: # Overall
-    fig_vol = viz.create_monthly_volume_chart(year=filter_year)
+    fig_vol = get_chart(viz, metric, filter_year)
     if fig_vol:
         st.plotly_chart(fig_vol, use_container_width=True)
     else:
@@ -97,7 +115,7 @@ with tabs[0]: # Overall
 # Helper to render specific group tabs
 def render_group_tab(tab_idx, group_name):
     with tabs[tab_idx]:
-        fig = viz.create_monthly_specific_muscle_chart(year=filter_year, filter_group=group_name)
+        fig = get_chart(viz, metric, filter_year, group=group_name)
         if fig:
             st.plotly_chart(fig, use_container_width=True)
         else:
@@ -112,6 +130,25 @@ render_group_tab(5, 'shoulders')
 render_group_tab(6, 'core')
 
 
+
+st.divider()
+
+# Exercise Progression Analysis
+st.subheader("Exercise Analysis 📈")
+
+# Get list of Top 50 exercises by frequency (to avoid clutter)
+# Ensure we define filtered_df or use the one from state? filtered_df is defined in app.py's flow
+# In app.py line 48: filtered_df = df.copy() (with year filter)
+# Re-filter for unique exercises available in the selected year
+top_exercises = filtered_df['exercise_title'].value_counts().head(50).index.tolist()
+selected_exercise = st.selectbox("Select Exercise", top_exercises)
+
+if selected_exercise:
+    fig_prog = viz.create_exercise_progression_chart(selected_exercise)
+    if fig_prog:
+        st.plotly_chart(fig_prog, use_container_width=True)
+    else:
+        st.info("No data for this exercise in the selected period.")
 
 st.divider()
 
