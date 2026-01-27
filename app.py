@@ -129,19 +129,43 @@ render_group_tab(4, 'chest')
 render_group_tab(5, 'shoulders')
 render_group_tab(6, 'core')
 
+st.divider()
 
+st.subheader("Muscle Balance")
+fig_pie = viz.create_muscle_group_distribution(year=filter_year)
+if fig_pie:
+    st.plotly_chart(fig_pie, use_container_width=True)
 
 st.divider()
 
 # Exercise Progression Analysis
 st.subheader("Exercise Analysis 📈")
 
-# Get list of Top 50 exercises by frequency (to avoid clutter)
-# Ensure we define filtered_df or use the one from state? filtered_df is defined in app.py's flow
-# In app.py line 48: filtered_df = df.copy() (with year filter)
-# Re-filter for unique exercises available in the selected year
-top_exercises = filtered_df['exercise_title'].value_counts().head(50).index.tolist()
-selected_exercise = st.selectbox("Select Exercise", top_exercises)
+# Filter exercises: Must have at least 12 sessions in the selected period
+# We first get valid exercises, then enrich with muscle group for hierarchical selection
+ex_counts = filtered_df.groupby('exercise_title')['start_time'].nunique()
+valid_exercises_list = ex_counts[ex_counts >= 12].index.tolist()
+
+if not valid_exercises_list:
+    st.info("No exercises found with at least 12 sessions in this period.")
+    selected_exercise = None
+else:
+    # Create a subset DF for valid exercises to map groups easily
+    valid_df = filtered_df[filtered_df['exercise_title'].isin(valid_exercises_list)][['exercise_title', 'muscle_group']].drop_duplicates()
+    
+    # Map raw muscle_group to Major Group (Arms, Chest, etc) for cleaner grouping
+    valid_df['major_group'] = valid_df['muscle_group'].replace(GROUP_MAPPING)
+    
+    # 1. Select Group
+    available_groups = sorted(valid_df['major_group'].unique())
+    selected_group = st.selectbox("Select Muscle Group", available_groups)
+    
+    # 2. Select Exercise (Filtered by Group)
+    exercises_in_group = valid_df[valid_df['major_group'] == selected_group]['exercise_title'].sort_values().tolist()
+    
+    # Create formatted labels with count? Optional style choice.
+    # For now just the names.
+    selected_exercise = st.selectbox("Select Exercise", exercises_in_group)
 
 if selected_exercise:
     fig_prog = viz.create_exercise_progression_chart(selected_exercise)
@@ -149,13 +173,6 @@ if selected_exercise:
         st.plotly_chart(fig_prog, use_container_width=True)
     else:
         st.info("No data for this exercise in the selected period.")
-
-st.divider()
-
-st.subheader("Muscle Balance")
-fig_pie = viz.create_muscle_group_distribution(year=filter_year)
-if fig_pie:
-    st.plotly_chart(fig_pie, use_container_width=True)
 
 
 
