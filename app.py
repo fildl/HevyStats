@@ -73,14 +73,45 @@ col6.metric("Avg Sets/Workout", f"{avg_sets_workout:.1f}")
 
 st.divider()
 
-# Charts
+# Check for unknown exercises
+unknown_exercises = filtered_df[filtered_df['muscle_group'] == 'unknown']['exercise_title'].unique()
+if len(unknown_exercises) > 0:
+    st.warning(
+        f"⚠️ Found {len(unknown_exercises)} exercises with unknown muscle group: "
+        f"{', '.join(unknown_exercises)}. Please update `exercise_database.json`."
+    )
+
 # Charts
 st.subheader("Training Volume History")
-fig_vol = viz.create_monthly_volume_chart(year=filter_year)
-if fig_vol:
-    st.plotly_chart(fig_vol, use_container_width=True)
-else:
-    st.info("No data available for chart.")
+
+# Define tabs: Overall + specific major groups that have sub-muscles
+tabs = st.tabs(["Overall", "Arms", "Legs", "Back", "Chest", "Shoulders", "Core"])
+
+with tabs[0]: # Overall
+    fig_vol = viz.create_monthly_volume_chart(year=filter_year)
+    if fig_vol:
+        st.plotly_chart(fig_vol, use_container_width=True)
+    else:
+        st.info("No data available.")
+
+# Helper to render specific group tabs
+def render_group_tab(tab_idx, group_name):
+    with tabs[tab_idx]:
+        fig = viz.create_monthly_specific_muscle_chart(year=filter_year, filter_group=group_name)
+        if fig:
+            st.plotly_chart(fig, use_container_width=True)
+        else:
+            st.info(f"No data available for {group_name}.")
+
+# Specific Groups
+render_group_tab(1, 'arms')
+render_group_tab(2, 'legs')
+render_group_tab(3, 'back')
+render_group_tab(4, 'chest')
+render_group_tab(5, 'shoulders')
+render_group_tab(6, 'core')
+
+
 
 st.divider()
 

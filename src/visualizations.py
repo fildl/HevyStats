@@ -104,14 +104,24 @@ class WorkoutVisualizer:
 
         return fig
 
-    def create_monthly_specific_muscle_chart(self, year=None):
+    def create_monthly_specific_muscle_chart(self, year=None, filter_group=None):
         """
         Creates a stacked bar chart of monthly volume by SPECIFIC muscle group.
         (e.g., Biceps, Triceps, Chest, etc. instead of just Arms, Chest)
+        
+        Args:
+            year (int): Filter by year
+            filter_group (str): If provided (e.g. 'arms'), only show muscles in this major group.
         """
         plot_data = self.df.copy()
         if year:
             plot_data = plot_data[plot_data['start_time'].dt.year == year]
+            
+        if filter_group:
+            # Filter specifically for muscles matching this major group
+            # We need to map each row's muscle_group to check if it belongs to filter_group
+            plot_data['mapped_group'] = plot_data['muscle_group'].replace(GROUP_MAPPING)
+            plot_data = plot_data[plot_data['mapped_group'] == filter_group]
 
         if plot_data.empty:
             return None
