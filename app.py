@@ -65,7 +65,45 @@ if filter_routine:
 viz = WorkoutVisualizer(filtered_df, bw_df, phases_df)
 
 # Main Dashboard
-st.title("Hevy Stats")
+# Main Dashboard
+# st.title("Hevy Stats")
+st.markdown("""
+<style>
+@keyframes gradient {
+    0% { background-position: 0% 50%; }
+    50% { background-position: 100% 50%; }
+    100% { background-position: 0% 50%; }
+}
+.header {
+    background: linear-gradient(-45deg, #ee7752, #e73c7e, #23a6d5, #23d5ab);
+    background-size: 400% 400%;
+    animation: gradient 15s ease infinite;
+    padding: 30px;
+    border-radius: 15px;
+    text-align: center;
+    color: white;
+    margin-bottom: 30px;
+    box-shadow: 0 4px 15px rgba(0,0,0,0.2);
+}
+.header h1 {
+    margin: 0;
+    font-size: 3.5rem;
+    font-weight: 700;
+    color: white;
+    text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
+    font-family: sans-serif;
+}
+.header p {
+    font-size: 1.2rem;
+    opacity: 0.9;
+    margin-top: 5px;
+}
+</style>
+<div class="header">
+    <h1>Hevy Stats</h1>
+</div>
+""", unsafe_allow_html=True)
+
 
 # Show active filters
 active_filters = []
