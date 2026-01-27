@@ -7,7 +7,7 @@ class WorkoutVisualizer:
     def __init__(self, df, bodyweight_df=None, phase_df=None):
         self.df = df
         self.bodyweight_df = bodyweight_df
-        self.phase_df = phase_df
+        self.phases_data = phase_df
 
     def create_monthly_volume_chart(self, year=None):
         """
@@ -57,18 +57,42 @@ class WorkoutVisualizer:
                 bw_data['month_date'] = bw_data['date'].dt.to_period('M').dt.start_time
                 monthly_bw = bw_data.groupby('month_date')['weight_kg'].mean().reset_index()
                 
-                # Add Line Trace
+                # Phase Lookup
+                def get_phase(dt):
+                    if self.phases_data is not None:
+                        past_phases = self.phases_data[self.phases_data['date'] <= dt]
+                        if not past_phases.empty: return past_phases.iloc[-1]['phase']
+                    return 'unknown'
+
+                monthly_bw['phase'] = monthly_bw['month_date'].apply(get_phase)
+
+                # 1. Background line
                 fig.add_trace(
                     go.Scatter(
                         x=monthly_bw['month_date'],
                         y=monthly_bw['weight_kg'],
-                        name='Avg Bodyweight',
-                        mode='lines+markers',
-                        line=dict(color='white', width=3),
-                        marker=dict(size=6, color='white'),
+                        mode='lines',
+                        line=dict(color='rgba(255,255,255,0.4)', width=3),
+                        showlegend=False,
+                        hoverinfo='skip',
                         yaxis='y2'
                     )
                 )
+
+                # 2. Phase Markers
+                for phase_name in monthly_bw['phase'].unique():
+                    phase_subset = monthly_bw[monthly_bw['phase'] == phase_name]
+                    color = PHASE_COLORS.get(phase_name, '#ffffff')
+                    fig.add_trace(
+                        go.Scatter(
+                            x=phase_subset['month_date'],
+                            y=phase_subset['weight_kg'],
+                            name=f"BW ({phase_name})",
+                            mode='markers',
+                            marker=dict(color=color, size=8, line=dict(width=1, color='white')),
+                            yaxis='y2'
+                        )
+                    )
 
                 # Configure Secondary Y-Axis
                 fig.update_layout(
@@ -145,10 +169,8 @@ class WorkoutVisualizer:
             # but Plotly usually sorts by value or name.
         )
         
-        # --- 3. Bodyweight Overlay (Optional, consistent with main chart) ---
-        # Leaving it out for specific muscles to reduce noise, or keeping it?
-        # User requested "graph analogous to Training Volume History", so let's keep it consistent.
-        if self.bodyweight_df is not None and not self.bodyweight_df.empty:
+        # --- 3. Bodyweight Overlay (Phase Colored) ---
+        if self.bodyweight_df is not None and not self.bodyweight_df.empty and self.phases_data is not None:
              min_date = plot_data['start_time'].min()
              max_date = plot_data['start_time'].max()
              bw_data = self.bodyweight_df[
@@ -158,17 +180,36 @@ class WorkoutVisualizer:
              if not bw_data.empty:
                 bw_data['month_date'] = bw_data['date'].dt.to_period('M').dt.start_time
                 monthly_bw = bw_data.groupby('month_date')['weight_kg'].mean().reset_index()
-                fig.add_trace(
-                    go.Scatter(
-                        x=monthly_bw['month_date'],
-                        y=monthly_bw['weight_kg'],
-                        name='Avg Bodyweight',
-                        mode='lines+markers',
-                        line=dict(color='white', width=3),
-                        marker=dict(size=6, color='white'),
+                
+                def get_phase(dt):
+                    past_phases = self.phases_data[self.phases_data['date'] <= dt]
+                    if not past_phases.empty: return past_phases.iloc[-1]['phase']
+                    return 'unknown'
+
+                monthly_bw['phase'] = monthly_bw['month_date'].apply(get_phase)
+                
+                fig.add_trace(go.Scatter(
+                    x=monthly_bw['month_date'],
+                    y=monthly_bw['weight_kg'],
+                    mode='lines',
+                    line=dict(color='rgba(255,255,255,0.4)', width=3),
+                    showlegend=False,
+                    yaxis='y2',
+                    hoverinfo='skip'
+                ))
+                
+                for phase_name in monthly_bw['phase'].unique():
+                    phase_subset = monthly_bw[monthly_bw['phase'] == phase_name]
+                    color = PHASE_COLORS.get(phase_name, '#ffffff')
+                    fig.add_trace(go.Scatter(
+                        x=phase_subset['month_date'],
+                        y=phase_subset['weight_kg'],
+                        name=f"BW ({phase_name})",
+                        mode='markers',
+                        marker=dict(color=color, size=8, line=dict(width=1, color='white')),
                         yaxis='y2'
-                    )
-                )
+                    ))
+
                 fig.update_layout(
                     yaxis2=dict(
                         title='Bodyweight (kg)',
@@ -257,8 +298,8 @@ class WorkoutVisualizer:
             category_orders=orders
         )
 
-        # --- 3. Bodyweight Overlay ---
-        if self.bodyweight_df is not None and not self.bodyweight_df.empty:
+        # --- 3. Bodyweight Overlay (Phase Colored) ---
+        if self.bodyweight_df is not None and not self.bodyweight_df.empty and self.phases_data is not None:
             min_date = plot_data['start_time'].min()
             max_date = plot_data['start_time'].max()
             bw_data = self.bodyweight_df[
@@ -268,19 +309,60 @@ class WorkoutVisualizer:
 
             if not bw_data.empty:
                 bw_data['month_date'] = bw_data['date'].dt.to_period('M').dt.start_time
+                # Group by month to get avg weight
                 monthly_bw = bw_data.groupby('month_date')['weight_kg'].mean().reset_index()
                 
+                # Assign Phase to each month
+                # Logic: Find the phase that started before or on this month
+                def get_phase(dt):
+                    # dt is Timestamp (start of month). 
+                    # We want the phase active at this time.
+                    past_phases = self.phases_data[self.phases_data['date'] <= dt]
+                    if not past_phases.empty:
+                        return past_phases.iloc[-1]['phase']
+                    # If no phase starts before, maybe take the first one? or 'unknown'
+                    return 'unknown'
+
+                monthly_bw['phase'] = monthly_bw['month_date'].apply(get_phase)
+
+                # Generate coloured traces using px.line logic
+                # We need to ensure connectivity. px.line with color breaks the line.
+                # To look good, we often plot a faint background line + colored markers/segments
+                
+                # 1. Background connection line (neutral)
                 fig.add_trace(
                     go.Scatter(
                         x=monthly_bw['month_date'],
                         y=monthly_bw['weight_kg'],
-                        name='Avg Bodyweight',
-                        mode='lines+markers',
-                        line=dict(color='white', width=3),
-                        marker=dict(size=6, color='white'),
+                        mode='lines',
+                        line=dict(color='rgba(255,255,255,0.4)', width=3),
+                        showlegend=False,
+                        hoverinfo='skip',
                         yaxis='y2'
                     )
                 )
+
+                # 2. Colored Markers + Lines (Segments)
+                # We use px to handle the grouping colors easily
+                # Warning: px.line creates gaps between different groups. The background line handles the visual flow.
+                
+                # Ensure colors are mapped
+                for phase_name in monthly_bw['phase'].unique():
+                    phase_subset = monthly_bw[monthly_bw['phase'] == phase_name]
+                    color = PHASE_COLORS.get(phase_name, '#ffffff')
+                    
+                    fig.add_trace(
+                        go.Scatter(
+                            x=phase_subset['month_date'],
+                            y=phase_subset['weight_kg'],
+                            name=f"BW ({phase_name})",
+                            mode='markers', # Just markers to avoid confusing gaps, or lines+markers?
+                            # If we use lines, it connects disjoint months of same phase (e.g. Bulk in Jan, Bulk in Dec -> Line across).
+                            # So strictly speaking, we should just use Markers for the phase indicator on top of the generic line.
+                            marker=dict(color=color, size=8, line=dict(width=1, color='white')),
+                            yaxis='y2'
+                        )
+                    )
 
                 fig.update_layout(
                     yaxis2=dict(
@@ -319,11 +401,40 @@ class WorkoutVisualizer:
             return None
             
         # Group by workout (start_time) to get session volume for this exercise
-        session_vol = ex_data.groupby('start_time')['volume'].sum().reset_index()
+        # Include 'gym' and 'gym_dependent' in aggregation
+        agg_dict = {'volume': 'sum'}
+        if 'gym' in ex_data.columns:
+            agg_dict['gym'] = 'first'
+        if 'gym_dependent' in ex_data.columns:
+            agg_dict['gym_dependent'] = 'first'
+            
+        session_vol = ex_data.groupby('start_time').agg(agg_dict).reset_index()
         session_vol = session_vol.sort_values('start_time')
         
         # Calculate Cumulative Max (Records)
-        session_vol['record_volume'] = session_vol['volume'].cummax()
+        # Check if gym dependent
+        is_dependent = False
+        if 'gym_dependent' in session_vol.columns and not session_vol.empty:
+            # It's a boolean column, assume True if any is True (should be consistent per exercise)
+            is_dependent = bool(session_vol.iloc[0]['gym_dependent'])
+
+        if not is_dependent:
+             session_vol['record_volume'] = session_vol['volume'].cummax()
+        else:
+             records = []
+             gym_maxes = {} # gym -> current record
+             
+             for _, row in session_vol.iterrows():
+                 gym = row.get('gym', 'Unknown')
+                 current_vol = row['volume']
+                 
+                 existing_max = gym_maxes.get(gym, 0.0)
+                 new_max = max(existing_max, current_vol)
+                 gym_maxes[gym] = new_max
+                 
+                 records.append(new_max)
+             
+             session_vol['record_volume'] = records
         
         fig = go.Figure()
         
@@ -338,14 +449,37 @@ class WorkoutVisualizer:
         
         # 2. Record Progression (Line)
         # We construct a step line for records
-        fig.add_trace(go.Scatter(
-            x=session_vol['start_time'],
-            y=session_vol['record_volume'],
-            mode='lines',
-            name='Volume Record',
-            line=dict(color='#ef476f', width=2, shape='hv'), # hv shape makes it a step function
-            hoverinfo='skip'
-        ))
+        if not is_dependent:
+            fig.add_trace(go.Scatter(
+                x=session_vol['start_time'],
+                y=session_vol['record_volume'],
+                mode='lines',
+                name='Volume Record',
+                line=dict(color='#ef476f', width=2, shape='hv'), # hv shape makes it a step function
+                hoverinfo='skip'
+            ))
+        else:
+            # For dependent records, we need to break the line when the gym changes.
+            # We identify segments where the gym is continuous.
+            session_vol['gym'] = session_vol['gym'].fillna('Unknown')
+            # Create a group id that increments every time gym changes
+            session_vol['gym_group'] = (session_vol['gym'] != session_vol['gym'].shift()).cumsum()
+            
+            # Using legendgroup to have one legend item toggle all segments
+            show_legend = True
+            
+            for _, group_data in session_vol.groupby('gym_group'):
+                fig.add_trace(go.Scatter(
+                    x=group_data['start_time'],
+                    y=group_data['record_volume'],
+                    mode='lines',
+                    name='Volume Record',
+                    legendgroup='records',
+                    showlegend=show_legend,
+                    line=dict(color='#ef476f', width=2, shape='hv'),
+                    hoverinfo='skip'
+                ))
+                show_legend = False # Only show first segment in legend
 
         # Highlights formatting
         fig.update_layout(

@@ -36,10 +36,9 @@ MUSCLE_GROUP_COLORS = {
     'unknown': '#ffffff'
 }
 
-# Colors for Body Composition Phases
 PHASE_COLORS = {
-    'bulk': '#F5D491',
-    'cut': '#BDADEA',
-    'maintenance': '#adb5bd',
-    'unknown': '#95a5a6'
+    'bulk': '#FFD700',      # Bright Gold
+    'cut': '#FF00FF',       # Magenta/Purple (High contrast)
+    'maintenance': '#B0BEC5', # Blue-ish Gray
+    'unknown': '#5f6368'
 }

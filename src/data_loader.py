@@ -108,6 +108,26 @@ class HevyDataLoader:
         self.workout_data['weight_type'] = self.workout_data['exercise_title'].apply(
             lambda x: get_meta(x, 'weight_type', 'unknown')
         )
+        self.workout_data['gym_dependent'] = self.workout_data['exercise_title'].apply(
+            lambda x: get_meta(x, 'gym_dependent', False)
+        )
+
+        # Gym Mapping
+        if self.gym_data is not None and not self.gym_data.empty:
+            # Sort for safety though loading sorts it
+            self.gym_data = self.gym_data.sort_values('date')
+            
+            def get_gym(dt):
+                # dt is the workout timestamp
+                # We find the latest gym entry where date <= dt
+                candidates = self.gym_data[self.gym_data['date'] <= dt]
+                if candidates.empty:
+                    return 'Unknown'
+                return candidates.iloc[-1]['gym']
+            
+            self.workout_data['gym'] = self.workout_data['start_time'].apply(get_gym)
+        else:
+            self.workout_data['gym'] = 'Unknown'
 
         # 4. Volume Calculation
         self.workout_data['workout_date'] = self.workout_data['start_time'].dt.date
