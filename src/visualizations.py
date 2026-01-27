@@ -38,8 +38,11 @@ class WorkoutVisualizer:
             color='major_group',
             title='Monthly Training Volume (tonnes) & Bodyweight (kg)',
             color_discrete_map=MUSCLE_GROUP_COLORS,
-            category_orders={'major_group': MUSCLE_GROUP_ORDER}
+            category_orders={'major_group': MUSCLE_GROUP_ORDER},
+            text='volume_k'
         )
+
+        fig.update_traces(texttemplate='%{text:.1f}', textposition='inside', textfont_size=16)
 
         # --- 3. Bodyweight Overlay (Monthly Average) ---
         if self.bodyweight_df is not None and not self.bodyweight_df.empty:
@@ -109,6 +112,7 @@ class WorkoutVisualizer:
         
         fig.update_layout(
             autosize=True,
+            height=600,
             xaxis=dict(
                 title=None,
                 tickformat=tick_format,
@@ -164,10 +168,13 @@ class WorkoutVisualizer:
             y='volume_k',
             color='muscle_group',
             title='Monthly Volume by Specific Muscle (tonnes)',
-            color_discrete_map=MUSCLE_GROUP_COLORS
+            color_discrete_map=MUSCLE_GROUP_COLORS,
+            text='volume_k'
             # We don't enforce a strict order here as there are many specific muscles,
             # but Plotly usually sorts by value or name.
         )
+        
+        fig.update_traces(texttemplate='%{text:.1f}', textposition='inside', textfont_size=16)
         
         # --- 3. Bodyweight Overlay (Phase Colored) ---
         if self.bodyweight_df is not None and not self.bodyweight_df.empty and self.phases_data is not None:
@@ -223,6 +230,7 @@ class WorkoutVisualizer:
         tick_format = "%b" if year else "%b %Y"
         fig.update_layout(
             autosize=True,
+            height=600,
             xaxis=dict(
                 title=None,
                 tickformat=tick_format,
@@ -295,8 +303,11 @@ class WorkoutVisualizer:
             color=group_col,
             title='Avg Volume per Workout (tonnes) & Bodyweight (kg)',
             color_discrete_map=color_map,
-            category_orders=orders
+            category_orders=orders,
+            text='avg_vol_k'
         )
+        
+        fig.update_traces(texttemplate='%{text:.1f}', textposition='inside', textfont_size=16)
 
         # --- 3. Bodyweight Overlay (Phase Colored) ---
         if self.bodyweight_df is not None and not self.bodyweight_df.empty and self.phases_data is not None:
@@ -377,6 +388,7 @@ class WorkoutVisualizer:
         tick_format = "%b" if year else "%b %Y"
         fig.update_layout(
             autosize=True,
+            height=600,
             xaxis=dict(title=None, tickformat=tick_format, dtick="M1"),
             yaxis_title='Avg Volume / Workout (tonnes)',
             legend_title_text='Muscle Group',
