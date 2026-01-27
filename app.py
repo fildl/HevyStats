@@ -150,18 +150,15 @@ if not valid_exercises_list:
     st.info("No exercises found with at least 12 sessions in this period.")
     selected_exercise = None
 else:
-    # Create a subset DF for valid exercises to map groups easily
+    # Create a subset DF for valid exercises
     valid_df = filtered_df[filtered_df['exercise_title'].isin(valid_exercises_list)][['exercise_title', 'muscle_group']].drop_duplicates()
     
-    # Map raw muscle_group to Major Group (Arms, Chest, etc) for cleaner grouping
-    valid_df['major_group'] = valid_df['muscle_group'].replace(GROUP_MAPPING)
-    
-    # 1. Select Group
-    available_groups = sorted(valid_df['major_group'].unique())
+    # 1. Select Group (Use specific muscle group directly)
+    available_groups = sorted(valid_df['muscle_group'].unique())
     selected_group = st.selectbox("Select Muscle Group", available_groups)
     
     # 2. Select Exercise (Filtered by Group)
-    exercises_in_group = valid_df[valid_df['major_group'] == selected_group]['exercise_title'].sort_values().tolist()
+    exercises_in_group = valid_df[valid_df['muscle_group'] == selected_group]['exercise_title'].sort_values().tolist()
     
     # Initialize or Validate Session State for Navigation
     if 'selected_exercise_nav' not in st.session_state:
