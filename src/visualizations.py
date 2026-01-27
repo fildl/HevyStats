@@ -1,7 +1,7 @@
 import plotly.express as px
 import plotly.graph_objects as go
 import pandas as pd
-from .const import MUSCLE_GROUP_COLORS, PHASE_COLORS, GROUP_MAPPING
+from .const import MUSCLE_GROUP_COLORS, PHASE_COLORS, GROUP_MAPPING, MUSCLE_GROUP_ORDER
 
 class WorkoutVisualizer:
     def __init__(self, df, bodyweight_df=None, phase_df=None):
@@ -12,6 +12,7 @@ class WorkoutVisualizer:
     def create_monthly_volume_chart(self, year=None):
         """
         Creates a stacked bar chart of monthly volume by muscle group.
+        Includes a secondary line for monthly average bodyweight.
         """
         plot_data = self.df.copy()
         if year:
@@ -20,93 +21,86 @@ class WorkoutVisualizer:
         if plot_data.empty:
             return None
 
-        # Prepare data
-        plot_data['year_month'] = plot_data['start_time'].dt.to_period('M').astype(str)
+        # --- 1. Volume Data Preparation ---
+        # Align dates to start of month for consistent grouping
+        plot_data['month_date'] = plot_data['start_time'].dt.to_period('M').dt.start_time
+        plot_data['major_group'] = plot_data['muscle_group'].replace(GROUP_MAPPING)
         
-        # Aggregate
-        monthly_vol = plot_data.groupby(['year_month', 'muscle_group'])['volume'].sum().reset_index()
+        # Aggregate Volume
+        monthly_vol = plot_data.groupby(['month_date', 'major_group'])['volume'].sum().reset_index()
         monthly_vol['volume_k'] = monthly_vol['volume'] / 1000.0
-        
-        # Sort muscle groups to ensure consistent coloring
-        # We want mapped muscle groups (major groups) if using GROUP_MAPPING logic, 
-        # but ref1 logic mapped them first. Let's assume input df has 'muscle_group' as the specific one, 
-        # but we might want to aggregate by major group for the main chart?
-        # Ref1 logic: plot_data['plotted_muscle_group'] = plot_data['muscle_group'].replace(self.GROUP_MAPPING)
-        
-        monthly_vol['major_group'] = monthly_vol['muscle_group'].replace(GROUP_MAPPING)
-        
-        # Re-aggregate by major group
-        final_df = monthly_vol.groupby(['year_month', 'major_group'])['volume_k'].sum().reset_index()
 
+        # --- 2. Create Stacked Bar Chart ---
         fig = px.bar(
-            final_df,
-            x='year_month',
+            monthly_vol,
+            x='month_date',
             y='volume_k',
             color='major_group',
-            title='Monthly Training Volume (tonnes)',
+            title='Monthly Training Volume (tonnes) & Bodyweight (kg)',
             color_discrete_map=MUSCLE_GROUP_COLORS,
-            category_orders={'major_group': list(MUSCLE_GROUP_COLORS.keys())}
+            category_orders={'major_group': MUSCLE_GROUP_ORDER}
         )
 
-        fig.update_layout(
-            autosize=True,
-            xaxis_title=None,
-            yaxis_title='Volume (x1000 kg)',
-            legend_title_text='Muscle Group',
-            hovermode='x unified'
-        )
-
-        # Add Bodyweight Trace (Secondary Y-Axis) if available
+        # --- 3. Bodyweight Overlay (Monthly Average) ---
         if self.bodyweight_df is not None and not self.bodyweight_df.empty:
-            # Filter bodyweight for the relevant period
+            # Filter bodyweight data to relevant range
             min_date = plot_data['start_time'].min()
             max_date = plot_data['start_time'].max()
             
             bw_data = self.bodyweight_df[
                 (self.bodyweight_df['date'] >= min_date) & 
                 (self.bodyweight_df['date'] <= max_date)
-            ].sort_values('date')
+            ].copy()
 
             if not bw_data.empty:
-                # Convert dates to match x-axis period format roughly, or just plot on time axis?
-                # Plotly bar charts with categorical x-axis (strings) vs continuous time axis.
-                # To mix them perfectly, we should probably stick to real datetime objects for X.
+                # Calculate Monthly Average
+                bw_data['month_date'] = bw_data['date'].dt.to_period('M').dt.start_time
+                monthly_bw = bw_data.groupby('month_date')['weight_kg'].mean().reset_index()
                 
-                # Let's rebuild the bar chart with datetime objects for X to allow overlay
-                # Re-do aggregation with real dates (Start of Month)
-                plot_data['month_date'] = plot_data['start_time'].dt.to_period('M').dt.start_time
-                monthly_vol_dt = plot_data.groupby(['month_date', 'muscle_group'])['volume'].sum().reset_index()
-                monthly_vol_dt['major_group'] = monthly_vol_dt['muscle_group'].replace(GROUP_MAPPING)
-                final_df_dt = monthly_vol_dt.groupby(['month_date', 'major_group'])['volume'].sum().reset_index()
-                final_df_dt['volume_k'] = final_df_dt['volume'] / 1000.0
-
-                fig = px.bar(
-                    final_df_dt,
-                    x='month_date',
-                    y='volume_k',
-                    color='major_group',
-                    title='Monthly Training Volume',
-                    color_discrete_map=MUSCLE_GROUP_COLORS
-                )
-
+                # Add Line Trace
                 fig.add_trace(
                     go.Scatter(
-                        x=bw_data['date'],
-                        y=bw_data['weight_kg'],
-                        name='Bodyweight',
+                        x=monthly_bw['month_date'],
+                        y=monthly_bw['weight_kg'],
+                        name='Avg Bodyweight',
                         mode='lines+markers',
-                        line=dict(color='white', width=2),
+                        line=dict(color='white', width=3),
+                        marker=dict(size=6, color='white'),
                         yaxis='y2'
                     )
                 )
 
+                # Configure Secondary Y-Axis
                 fig.update_layout(
                     yaxis2=dict(
                         title='Bodyweight (kg)',
                         overlaying='y',
-                        side='right'
+                        side='right',
+                        showgrid=False
                     )
                 )
+
+        # --- 4. Final Layout Polish ---
+        tick_format = "%b" if year else "%b %Y"
+        
+        fig.update_layout(
+            autosize=True,
+            xaxis=dict(
+                title=None,
+                tickformat=tick_format,
+                dtick="M1"  # Force monthly ticks
+            ),
+            yaxis_title='Volume (x1000 kg)',
+            legend_title_text='Muscle Group',
+            hovermode='x unified',
+            legend=dict(
+                orientation="h",
+                yanchor="bottom",
+                y=1.02,
+                xanchor="right",
+                x=1
+            )
+        )
 
         return fig
 

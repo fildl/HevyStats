@@ -12,6 +12,9 @@ GROUP_MAPPING = {
     'traps': 'back'
 }
 
+# Explicit Sort Order (Chromatic/User Preference)
+MUSCLE_GROUP_ORDER = ['arms', 'shoulders', 'chest', 'core', 'back', 'legs', 'unknown']
+
 # Colors for specific muscles and major groups
 MUSCLE_GROUP_COLORS = {
     'arms': '#ef476f',
@@ -29,7 +32,8 @@ MUSCLE_GROUP_COLORS = {
     'quads': '#073b4c',
     'hamstrings': '#42bfdd',
     'glutes': '#c7b8ea',
-    'calves': '#fcffeb'
+    'calves': '#fcffeb',
+    'unknown': '#ffffff'
 }
 
 # Colors for Body Composition Phases
