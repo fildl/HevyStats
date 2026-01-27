@@ -50,16 +50,26 @@ viz = WorkoutVisualizer(filtered_df, bw_df, phases_df)
 st.title("Dashboard")
 
 # KPI Row
-col1, col2, col3, col4 = st.columns(4)
+col1, col2, col3, col4, col5, col6 = st.columns(6)
 total_vol = filtered_df['volume'].sum() / 1000 # tonnes
 total_workouts = filtered_df['start_time'].dt.date.nunique()
 total_sets = len(filtered_df)
+total_reps = int(filtered_df['reps'].sum())
+
+# Calculate Duration
+# We use start_time to identify unique workouts and calculate duration for each
+unique_workouts = filtered_df[['start_time', 'end_time']].drop_duplicates()
+total_seconds = (unique_workouts['end_time'] - unique_workouts['start_time']).dt.total_seconds().sum()
+total_hours = total_seconds / 3600
+
 avg_sets_workout = total_sets / total_workouts if total_workouts > 0 else 0
 
 col1.metric("Total Volume", f"{total_vol:.1f} t")
 col2.metric("Workouts", total_workouts)
-col3.metric("Total Sets", f"{total_sets}")
-col4.metric("Avg Sets/Workout", f"{avg_sets_workout:.1f}")
+col3.metric("Hours", f"{total_hours:.1f} h")
+col4.metric("Total Sets", f"{total_sets}")
+col5.metric("Total Reps", f"{total_reps}")
+col6.metric("Avg Sets/Workout", f"{avg_sets_workout:.1f}")
 
 st.divider()
 
