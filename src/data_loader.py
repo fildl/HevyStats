@@ -116,33 +116,45 @@ class HevyDataLoader:
         # Create masks for different calculation types
         double_weight_mask = self.workout_data['weight_type'] == 'double_weight'
         assisted_mask = self.workout_data['weight_type'] == 'assisted'
-        # Standard is anything that is NOT double_weight AND NOT assisted (and is not None/Nan)
-        standard_mask = (~double_weight_mask) & (~assisted_mask)
+        bodyweight_mask = self.workout_data['weight_type'] == 'bodyweight'
+        weighted_bodyweight_mask = self.workout_data['weight_type'] == 'weighted_bodyweight'
+        
+        # Standard: Anything NOT special. (weighted, unknown, etc.)
+        standard_mask = (~double_weight_mask) & (~assisted_mask) & (~bodyweight_mask) & (~weighted_bodyweight_mask)
 
         # A. Standard: Weight * Reps
         self.workout_data.loc[standard_mask, 'volume'] = (
-            self.workout_data.loc[standard_mask, 'weight_kg'] * 
+            self.workout_data.loc[standard_mask, 'weight_kg'].fillna(0) * 
             self.workout_data.loc[standard_mask, 'reps']
         )
 
         # B. Double Weight (Dumbbells): Weight * 2 * Reps
         self.workout_data.loc[double_weight_mask, 'volume'] = (
-            self.workout_data.loc[double_weight_mask, 'weight_kg'] * 2 * 
+            self.workout_data.loc[double_weight_mask, 'weight_kg'].fillna(0) * 2 * 
             self.workout_data.loc[double_weight_mask, 'reps']
         )
 
-        # C. Assisted: (Bodyweight - Weight) * Reps
-        # This is iterative because it depends on the date for bodyweight
-        # Optimization: Group by date? For now, iterative is safe and clear enough for this scale.
-        if assisted_mask.any():
-            # Create a lookup series map for Bodyweights to avoid N lookups
-            # Or just iterate the assisted rows
-            for idx, row in self.workout_data[assisted_mask].iterrows():
+        # C. Iterative calculations for Bodyweight dependent types
+        # (Assisted, Bodyweight, Weighted Bodyweight)
+        if assisted_mask.any() or bodyweight_mask.any() or weighted_bodyweight_mask.any():
+            
+            # Combine masks to iterate efficiently
+            bw_dependent_mask = assisted_mask | bodyweight_mask | weighted_bodyweight_mask
+            
+            for idx, row in self.workout_data[bw_dependent_mask].iterrows():
                 bw = self.get_bodyweight_for_date(pd.Timestamp(row['workout_date']))
-                assist_weight = row['weight_kg']
-                reps = row['reps']
-                if pd.notna(assist_weight) and pd.notna(reps):
-                    effective_weight = bw - assist_weight
-                    self.workout_data.loc[idx, 'volume'] = effective_weight * reps
+                weight = row['weight_kg'] if pd.notna(row['weight_kg']) else 0.0
+                reps = row['reps'] if pd.notna(row['reps']) else 0
+                w_type = row['weight_type']
+                
+                vol = 0.0
+                if w_type == 'assisted':
+                    vol = (bw - weight) * reps
+                elif w_type == 'bodyweight':
+                    vol = bw * reps
+                elif w_type == 'weighted_bodyweight':
+                    vol = (bw + weight) * reps
+                
+                self.workout_data.loc[idx, 'volume'] = vol
         
         self.workout_data['volume'] = self.workout_data['volume'].fillna(0)
