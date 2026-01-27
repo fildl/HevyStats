@@ -163,9 +163,40 @@ else:
     # 2. Select Exercise (Filtered by Group)
     exercises_in_group = valid_df[valid_df['major_group'] == selected_group]['exercise_title'].sort_values().tolist()
     
-    # Create formatted labels with count? Optional style choice.
-    # For now just the names.
-    selected_exercise = st.selectbox("Select Exercise", exercises_in_group)
+    # Initialize or Validate Session State for Navigation
+    if 'selected_exercise_nav' not in st.session_state:
+        st.session_state.selected_exercise_nav = exercises_in_group[0]
+    elif st.session_state.selected_exercise_nav not in exercises_in_group:
+        # If group changed or filtered list changed, reset to first item
+        st.session_state.selected_exercise_nav = exercises_in_group[0]
+        
+    # Navigation Callbacks
+    def prev_ex():
+        current = st.session_state.selected_exercise_nav
+        if current in exercises_in_group:
+            curr_idx = exercises_in_group.index(current)
+            new_idx = (curr_idx - 1) % len(exercises_in_group)
+            st.session_state.selected_exercise_nav = exercises_in_group[new_idx]
+            
+    def next_ex():
+        current = st.session_state.selected_exercise_nav
+        if current in exercises_in_group:
+            curr_idx = exercises_in_group.index(current)
+            new_idx = (curr_idx + 1) % len(exercises_in_group)
+            st.session_state.selected_exercise_nav = exercises_in_group[new_idx]
+
+    # Layout: [ < ] [ Selectbox ] [ > ]
+    c1, c2, c3 = st.columns([1, 10, 1])
+    with c1:
+        st.write("") # Spacer to align with label? 
+        st.write("") 
+        st.button("⬅️", on_click=prev_ex, help="Previous Exercise")
+    with c2:
+        selected_exercise = st.selectbox("Select Exercise", exercises_in_group, key='selected_exercise_nav')
+    with c3:
+        st.write("") 
+        st.write("") 
+        st.button("➡️", on_click=next_ex, help="Next Exercise")
 
 if selected_exercise:
     fig_prog = viz.create_exercise_progression_chart(selected_exercise)
