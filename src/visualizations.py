@@ -526,3 +526,88 @@ class WorkoutVisualizer:
             hole=0.4
         )
         return fig
+
+    def create_consistency_heatmap(self, year=None):
+        """
+        Creates a GitHub-style consistency heatmap.
+        X-axis: Weeks
+        Y-axis: Days (Mon-Sun)
+        Color: Volume (Intensity)
+        """
+        plot_data = self.df.copy()
+        
+        # Date Logic
+        if year:
+            plot_data = plot_data[plot_data['start_time'].dt.year == year]
+        else:
+            # Default to last 365 days if All Time is selected, to avoid massive charts
+            if not plot_data.empty:
+                max_date = plot_data['start_time'].max()
+                start_limit = max_date - pd.Timedelta(days=365)
+                plot_data = plot_data[plot_data['start_time'] >= start_limit]
+
+        if plot_data.empty:
+            return None
+
+        # Aggregate per day
+        plot_data['date'] = plot_data['start_time'].dt.date
+        daily_vol = plot_data.groupby('date')['volume'].sum().reset_index()
+        
+        # Create full date range to show empty days as grey/empty
+        min_date = daily_vol['date'].min()
+        max_date = daily_vol['date'].max()
+        all_dates = pd.date_range(start=min_date, end=max_date, freq='D').date
+        
+        # Merge with full range
+        full_df = pd.DataFrame({'date': all_dates})
+        full_df = pd.merge(full_df, daily_vol, on='date', how='left').fillna(0)
+        
+        # Prepare Coordinates
+        # y: Day of Week (Monday=0, Sunday=6) - We want Mon at top (0) or Sun at top?
+        # Usually GitHub has Sun/Mon at top. Let's put Mon (0) at Top.
+        # But Plotly Heatmap Y=0 is bottom by default unless reversed.
+        
+        full_df['datetime'] = pd.to_datetime(full_df['date'])
+        full_df['weekday'] = full_df['datetime'].dt.weekday # 0=Mon, 6=Sun
+        full_df['week_start'] = full_df['datetime'].apply(lambda d: d - pd.Timedelta(days=d.weekday()))
+        
+        # Heatmap
+        # We need to reshape for specific x,y,z or just pass columns.
+        
+        # Map weekday numbers to names for hover
+        days_map = {0:'Mon', 1:'Tue', 2:'Wed', 3:'Thu', 4:'Fri', 5:'Sat', 6:'Sun'}
+        full_df['day_name'] = full_df['weekday'].map(days_map)
+        
+        # Invert Y for visualization (Mon at top) -> actually with 'autorange="reversed"' in layout
+        
+        fig = go.Figure(data=go.Heatmap(
+            x=full_df['week_start'],
+            y=full_df['day_name'], # Or just weekday index
+            z=full_df['volume'],
+            colorscale='Greens',
+            showscale=False, # cleaner look? or True for reference
+            xgap=2, # separate cells
+            ygap=2,
+            hovertemplate='<b>%{y}</b>, %{x}<br>Volume: %{z:.0f} kg<extra></extra>'
+        ))
+
+        fig.update_layout(
+            title="Consistency Streak",
+            height=200, # Compact height
+            yaxis=dict(
+                title=None,
+                categoryorder='array',
+                categoryarray=['Sun', 'Sat', 'Fri', 'Thu', 'Wed', 'Tue', 'Mon'], # Mon at top
+                showgrid=False,
+                zeroline=False
+            ),
+            xaxis=dict(
+                title=None,
+                showgrid=False,
+                zeroline=False,
+                tickformat='%b %d'
+            ),
+            margin=dict(l=40, r=40, t=40, b=20)
+        )
+        
+        return fig

@@ -5,6 +5,51 @@ from src.data_loader import HevyDataLoader
 from src.visualizations import WorkoutVisualizer
 from src.const import GROUP_MAPPING
 
+def calculate_current_streak(df):
+    if df is None or df.empty:
+        return 0
+    
+    current_date = datetime.date.today()
+    current_year, current_week, _ = current_date.isocalendar()
+    
+    # Get unique (year, week) pairs from data
+    # We use a set for O(1) lookups during traversal, but we need sorted list for gap check
+    iso = df['start_time'].dt.isocalendar()
+    # Create valid (year, week) tuples unique
+    unique_weeks = sorted(list(set(zip(iso.year, iso.week))), reverse=True)
+    
+    if not unique_weeks:
+        return 0
+    
+    last_year, last_week = unique_weeks[0]
+    
+    # Helper to calc week difference
+    def weeks_diff(y1, w1, y2, w2):
+        d1 = datetime.datetime.fromisocalendar(y1, w1, 1)
+        d2 = datetime.datetime.fromisocalendar(y2, w2, 1)
+        return abs((d1 - d2).days) // 7
+        
+    diff_from_now = weeks_diff(current_year, current_week, last_year, last_week)
+    
+    # If the last workout was > 1 week ago (i.e. 2+ weeks gap), streak is 0
+    # Note: If diff is 0 (this week) or 1 (last week), streak is active.
+    if diff_from_now > 1:
+        return 0
+        
+    streak = 1
+    curr_y, curr_w = last_year, last_week
+    
+    # Iterate backwards to find consecutive weeks
+    for i in range(1, len(unique_weeks)):
+        prev_y, prev_w = unique_weeks[i]
+        if weeks_diff(curr_y, curr_w, prev_y, prev_w) == 1:
+            streak += 1
+            curr_y, curr_w = prev_y, prev_w
+        else:
+            break
+            
+    return streak
+
 # Page Config
 st.set_page_config(page_title="HevyStats", page_icon="🏋️‍♂️", layout="wide")
 
@@ -64,6 +109,9 @@ if filter_routine:
 # Visualizer
 viz = WorkoutVisualizer(filtered_df, bw_df, phases_df)
 
+# Calculate Streak (using full original dataframe to ignore filters)
+streak = calculate_current_streak(df)
+
 # Main Dashboard
 # Main Dashboard
 # st.title("Hevy Stats")
@@ -116,7 +164,7 @@ if active_filters:
     st.markdown(f"#### {' • '.join(active_filters)}")
 
 # KPI Row
-col1, col2, col3, col4, col5, col6 = st.columns(6)
+col1, col2, col3, col4, col5, col6, col7 = st.columns(7)
 total_vol = filtered_df['volume'].sum() / 1000 # tonnes
 total_workouts = filtered_df['start_time'].dt.date.nunique()
 total_sets = len(filtered_df)
@@ -136,8 +184,7 @@ col3.metric("Hours", f"{total_hours:.1f} h")
 col4.metric("Total Sets", f"{total_sets}")
 col5.metric("Total Reps", f"{total_reps}")
 col6.metric("Avg Sets/Workout", f"{avg_sets_workout:.1f}")
-
-st.divider()
+col7.metric("Weekly Streak", f"{streak} 🔥")
 
 # Check for unknown exercises
 unknown_exercises = filtered_df[filtered_df['muscle_group'] == 'unknown']['exercise_title'].unique()
@@ -147,13 +194,26 @@ if len(unknown_exercises) > 0:
         f"{', '.join(unknown_exercises)}. Please update `exercise_database.json`."
     )
 
+st.divider()
+
+# Consistency Heatmap
+heatmap_title = f"Workout Consistency ({filter_routine if filter_routine else 'All Splits'})"
+st.subheader(heatmap_title)
+fig_heatmap = viz.create_consistency_heatmap(year=filter_year)
+if fig_heatmap:
+    st.plotly_chart(fig_heatmap, use_container_width=True)
+else:
+    st.info("No data available for consistency heatmap.")
+
+st.divider()
+
 # Charts
 st.subheader("Training Volume History")
 
 # Metric Selection
 metric = st.radio(
     "Metric", 
-    ["Total Volume", "Avg Volume per Workout"], 
+    ["Avg Volume per Workout", "Total Volume"], 
     horizontal=True,
     label_visibility="collapsed"
 )
