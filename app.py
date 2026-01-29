@@ -207,13 +207,23 @@ st.divider()
 # Exercise Progression Analysis
 st.subheader("Exercise Analysis 📈")
 
-# Filter exercises: Must have at least 12 sessions in the selected period
+# Filter exercises: Must have at least a dynamic number of sessions
+# Logic: approx once every 2 weeks, min 2, max 10
+if filtered_df.empty:
+    days_range = 0
+else:
+    days_range = (filtered_df['start_time'].max() - filtered_df['start_time'].min()).days
+
+# Calculate threshold: 1 session per 14 days, min 2, capped at 10
+calculated_threshold = max(2, int(days_range // 14))
+min_sessions = min(10, calculated_threshold)
+
 # We first get valid exercises, then enrich with muscle group for hierarchical selection
 ex_counts = filtered_df.groupby('exercise_title')['start_time'].nunique()
-valid_exercises_list = ex_counts[ex_counts >= 12].index.tolist()
+valid_exercises_list = ex_counts[ex_counts >= min_sessions].index.tolist()
 
 if not valid_exercises_list:
-    st.info("No exercises found with at least 12 sessions in this period.")
+    st.info(f"No exercises found with at least {min_sessions} sessions in this period.")
     selected_exercise = None
 else:
     # Create a subset DF for valid exercises
