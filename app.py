@@ -163,28 +163,33 @@ if filter_routine:
 if active_filters:
     st.markdown(f"#### {' • '.join(active_filters)}")
 
-# KPI Row
-col1, col2, col3, col4, col5, col6, col7 = st.columns(7)
+# Metric Calculations
 total_vol = filtered_df['volume'].sum() / 1000 # tonnes
 total_workouts = filtered_df['start_time'].dt.date.nunique()
 total_sets = len(filtered_df)
 total_reps = int(filtered_df['reps'].sum())
 
 # Calculate Duration
-# We use start_time to identify unique workouts and calculate duration for each
 unique_workouts = filtered_df[['start_time', 'end_time']].drop_duplicates()
 total_seconds = (unique_workouts['end_time'] - unique_workouts['start_time']).dt.total_seconds().sum()
 total_hours = total_seconds / 3600
 
 avg_sets_workout = total_sets / total_workouts if total_workouts > 0 else 0
+avg_duration_mins = (total_seconds / 60) / total_workouts if total_workouts > 0 else 0
 
+# KPI Row 1
+col1, col2, col3, col4 = st.columns(4)
 col1.metric("Total Volume", f"{total_vol:.1f} t")
 col2.metric("Workouts", total_workouts)
 col3.metric("Hours", f"{total_hours:.1f} h")
 col4.metric("Total Sets", f"{total_sets}")
+
+# KPI Row 2
+col5, col6, col7, col8 = st.columns(4)
 col5.metric("Total Reps", f"{total_reps}")
 col6.metric("Avg Sets/Workout", f"{avg_sets_workout:.1f}")
-col7.metric("Weekly Streak", f"{streak} 🔥")
+col7.metric("Avg Duration", f"{avg_duration_mins:.0f} min")
+col8.metric("Weekly Streak", f"{streak} 🔥")
 
 # Check for unknown exercises
 unknown_exercises = filtered_df[filtered_df['muscle_group'] == 'unknown']['exercise_title'].unique()
