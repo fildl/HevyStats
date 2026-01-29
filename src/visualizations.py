@@ -505,26 +505,124 @@ class WorkoutVisualizer:
         
         return fig
 
-    def create_muscle_group_distribution(self, year=None):
-        """Pie chart of volume by muscle group"""
-        plot_data = self.df.copy()
-        if year:
-            plot_data = plot_data[plot_data['start_time'].dt.year == year]
-            
-        if plot_data.empty: return None
+    def create_muscle_balance_radar(self, current_df, comparison_dfs=None, title="Muscle Balance"):
+        """
+        Creates a Radar Chart (Spider Chart) comparing muscle group volume distribution.
         
-        plot_data['major_group'] = plot_data['muscle_group'].replace(GROUP_MAPPING)
-        vol_by_group = plot_data.groupby('major_group')['volume'].sum().reset_index()
+        Args:
+            current_df (pd.DataFrame): The main dataframe to visualize (e.g. Current Routine)
+            comparison_dfs (list of dict, optional): List of dicts with keys:
+                - 'df': dataframe
+                - 'label': str (e.g. "Historical Avg")
+                - 'color': str (hex or rgba)
+        """
+        if current_df is None or current_df.empty:
+            return None
+
+        # Helper to calculate % distribution
+        def get_distribution(df):
+            if df.empty: return pd.Series()
+            df = df.copy()
+            df['major_group'] = df['muscle_group'].replace(GROUP_MAPPING)
+            # Use 'size' to count sets (rows), assuming 1 row = 1 set
+            set_count_by_group = df.groupby('major_group').size()
+            total_sets = set_count_by_group.sum()
+            if total_sets == 0: return pd.Series()
+            return (set_count_by_group / total_sets) * 100
+
+        # DATA PREPARATION
+        # 1. Current
+        current_dist = get_distribution(current_df)
         
-        fig = px.pie(
-            vol_by_group,
-            values='volume',
-            names='major_group',
-            title='Volume Distribution by Muscle Group',
-            color='major_group',
-            color_discrete_map=MUSCLE_GROUP_COLORS,
-            hole=0.4
+        # Ensure all groups exist in order -> MUSCLE_GROUP_ORDER
+        # We need a fixed axis for radar
+        # [MODIFIED] Exclude 'unknown' from axes
+        axes = [g for g in MUSCLE_GROUP_ORDER if g != 'unknown']
+        
+        # Prepare traces
+        traces = []
+        
+        # Add Comparison Traces FIRST (so they are behind the current one if filled)
+        if comparison_dfs:
+            for item in comparison_dfs:
+                comp_df = item['df']
+                label = item['label']
+                color = item.get('color', 'grey')
+                
+                dist = get_distribution(comp_df)
+                # Reindex to ensure order and fill missing with 0
+                values = [dist.get(g, 0) for g in axes]
+                # Close the loop
+                values_closed = values + [values[0]]
+                axes_closed = axes + [axes[0]]
+                
+                # Handle color for fill (make it more transparent)
+                # If it's already rgba, we want to lower the alpha.
+                # If it's rgb, convert to rgba with low alpha.
+                # Quick fix: If it starts with rgba, just use a hardcoded low opacity override or try to parse.
+                # Safe approach: always use rgba(r,g,b,0.1) if input is hex/rgb, but handling input rgba string is messy.
+                # Let's just use the provided color for fill but set opacity in Scatterpolar if possible?
+                # Scatterpolar 'opacity' affects line too. 'fillcolor' is separate.
+                
+                fill_col = color
+                if 'rgba' in color:
+                     # e.g. rgba(54, 162, 235, 0.6)
+                     # We want to replace 0.6 with 0.1
+                     # rsplit on comma
+                     parts = color.rsplit(',', 1)
+                     if len(parts) == 2:
+                         fill_col = parts[0] + ', 0.1)'
+                elif 'rgb' in color:
+                     fill_col = color.replace('rgb', 'rgba').replace(')', ', 0.1)')
+                else:
+                     # Hex or name
+                     # Leave as is or try to convert? Plotly handles hex.
+                     # To add opacity to hex, we can't easily do it in string without conversion.
+                     # For now, just use the color as is (it might be opaque).
+                     pass
+
+                traces.append(go.Scatterpolar(
+                    r=values_closed,
+                    theta=axes_closed,
+                    fill='toself', 
+                    fillcolor=fill_col,
+                    name=label,
+                    line=dict(color=color, dash='dashdot'),
+                    hoverinfo='name+r'
+                ))
+
+        # Add Current Trace
+        values_curr = [current_dist.get(g, 0) for g in axes]
+        values_curr_closed = values_curr + [values_curr[0]]
+        axes_closed = axes + [axes[0]]
+        
+        traces.append(go.Scatterpolar(
+            r=values_curr_closed,
+            theta=axes_closed,
+            fill='toself',
+            name="Current",
+            line=dict(color='#ef476f', width=3),
+            marker=dict(size=5),
+        ))
+
+        fig = go.Figure(data=traces)
+        
+        fig.update_layout(
+            polar=dict(
+                radialaxis=dict(
+                    visible=True,
+                    range=[0, max([max(values_curr)] + [30])], # Dynamic max but at least 30%
+                    ticksuffix='%',
+                    showticklabels=True
+                )
+            ),
+            showlegend=True,
+            title=title,
+            height=500,
+            margin=dict(l=80, r=80, t=50, b=50),
+            legend=dict(orientation="h", y=-0.1) # Legend at bottom
         )
+        
         return fig
 
     def create_consistency_heatmap(self, year=None):

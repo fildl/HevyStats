@@ -206,7 +206,7 @@ heatmap_title = f"Workout Consistency ({filter_routine if filter_routine else 'A
 st.subheader(heatmap_title)
 fig_heatmap = viz.create_consistency_heatmap(year=filter_year)
 if fig_heatmap:
-    st.plotly_chart(fig_heatmap, use_container_width=True)
+    st.plotly_chart(fig_heatmap, width="stretch")
 else:
     st.info("No data available for consistency heatmap.")
 
@@ -239,7 +239,7 @@ def get_chart(viz_obj, metric_name, year, group=None):
 with tabs[0]: # Overall
     fig_vol = get_chart(viz, metric, filter_year)
     if fig_vol:
-        st.plotly_chart(fig_vol, use_container_width=True)
+        st.plotly_chart(fig_vol, width="stretch")
     else:
         st.info("No data available.")
 
@@ -248,7 +248,7 @@ def render_group_tab(tab_idx, group_name):
     with tabs[tab_idx]:
         fig = get_chart(viz, metric, filter_year, group=group_name)
         if fig:
-            st.plotly_chart(fig, use_container_width=True)
+            st.plotly_chart(fig, width="stretch")
         else:
             st.info(f"No data available for {group_name}.")
 
@@ -262,10 +262,48 @@ render_group_tab(6, 'core')
 
 st.divider()
 
-st.subheader("Muscle Balance")
-fig_pie = viz.create_muscle_group_distribution(year=filter_year)
-if fig_pie:
-    st.plotly_chart(fig_pie, use_container_width=True)
+# Muscle Balance Radar
+st.subheader("Muscle Balance Strategy 🕸️")
+
+# Comparison Datasets
+comparison_dfs = []
+
+# 1. Historical Average (All Time from full DF)
+# We can just use the full 'df' as historical reference
+comparison_dfs.append({
+    'df': df,
+    'label': 'Historical Avg',
+    'color': 'rgba(128, 128, 128, 0.5)' # Grey
+})
+
+# 2. Previous Routine (If a routine is selected)
+prev_routine_name = None
+if filter_routine:
+    # routine_order is defined at top: sorted by recent first
+    if filter_routine in routine_order:
+        curr_idx = routine_order.index(filter_routine)
+        # Check if there is a next one (which is OLDER in time)
+        if curr_idx + 1 < len(routine_order):
+            prev_routine_name = routine_order[curr_idx + 1]
+            prev_df = df[df['routine_name'] == prev_routine_name]
+            if not prev_df.empty:
+                comparison_dfs.append({
+                    'df': prev_df,
+                    'label': f"Prev: {prev_routine_name}",
+                    'color': 'rgba(54, 162, 235, 0.6)' # Blue-ish
+                })
+
+# Create Radar
+fig_radar = viz.create_muscle_balance_radar(
+    current_df=filtered_df, # The currently filtered view (e.g. Current Routine or Year)
+    comparison_dfs=comparison_dfs,
+    title=f"Muscle Balance: {filter_routine if filter_routine else 'Active View'} vs History"
+)
+
+if fig_radar:
+    st.plotly_chart(fig_radar, width="stretch")
+else:
+    st.info("Not enough data for Radar Chart.")
 
 st.divider()
 
