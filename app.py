@@ -5,46 +5,59 @@ from src.data_loader import HevyDataLoader
 from src.visualizations import WorkoutVisualizer
 from src.const import GROUP_MAPPING
 
-def calculate_current_streak(df):
+def get_unique_weeks(df):
     if df is None or df.empty:
-        return 0
-    
-    # Use the last workout date in the dataframe as the reference point
-    # This allows calculating streak for historical periods
-    last_workout_date = df['start_time'].max().date()
-    current_year, current_week, _ = last_workout_date.isocalendar()
-    
-    # Get unique (year, week) pairs from data
-    # We use a set for O(1) lookups during traversal, but we need sorted list for gap check
+        return []
     iso = df['start_time'].dt.isocalendar()
-    # Create valid (year, week) tuples unique
-    unique_weeks = sorted(list(set(zip(iso.year, iso.week))), reverse=True)
-    
+    return sorted(list(set(zip(iso.year, iso.week))), reverse=True)
+
+def weeks_diff(y1, w1, y2, w2):
+    d1 = datetime.datetime.fromisocalendar(y1, w1, 1)
+    d2 = datetime.datetime.fromisocalendar(y2, w2, 1)
+    return abs((d1 - d2).days) // 7
+
+def calculate_max_streak(df):
+    unique_weeks = get_unique_weeks(df)
     if not unique_weeks:
         return 0
+        
+    max_streak = 1
+    current_run = 1
     
-    # The "latest" week in the data (should match current_year, current_week usually)
+    # Iterate through sorted weeks (descending)
+    # Check consecutive diffs
+    for i in range(len(unique_weeks) - 1):
+        y1, w1 = unique_weeks[i]
+        y2, w2 = unique_weeks[i+1]
+        
+        if weeks_diff(y1, w1, y2, w2) == 1:
+            current_run += 1
+        else:
+            max_streak = max(max_streak, current_run)
+            current_run = 1
+            
+    max_streak = max(max_streak, current_run)
+    return max_streak
+
+def calculate_current_streak(df):
+    unique_weeks = get_unique_weeks(df)
+    if not unique_weeks:
+        return 0
+        
+    # Anchor to TODAY for "Current Streak"
+    today = datetime.date.today()
+    current_year, current_week, _ = today.isocalendar()
+    
     last_year, last_week = unique_weeks[0]
     
-    # Helper to calc week difference
-    def weeks_diff(y1, w1, y2, w2):
-        d1 = datetime.datetime.fromisocalendar(y1, w1, 1)
-        d2 = datetime.datetime.fromisocalendar(y2, w2, 1)
-        return abs((d1 - d2).days) // 7
-        
-    # Check if the streak is "connected" to the reference week 
-    # (should be 0 because we set reference to max date)
-    diff_from_ref = weeks_diff(current_year, current_week, last_year, last_week)
-    
-    # If there is a gap between the reference date and the last recorded week (unlikely if derived from max)
-    # But just in case logic changes:
-    if diff_from_ref > 1:
+    # Check if the last workout is connected to today (0 or 1 week gap)
+    diff = weeks_diff(current_year, current_week, last_year, last_week)
+    if diff > 1:
         return 0
         
     streak = 1
     curr_y, curr_w = last_year, last_week
     
-    # Iterate backwards to find consecutive weeks
     for i in range(1, len(unique_weeks)):
         prev_y, prev_w = unique_weeks[i]
         if weeks_diff(curr_y, curr_w, prev_y, prev_w) == 1:
@@ -116,8 +129,30 @@ if filter_routine:
 # Visualizer
 viz = WorkoutVisualizer(filtered_df, bw_df, phases_df)
 
-# Calculate Streak (using filtered dataframe)
-streak = calculate_current_streak(filtered_df)
+# Visualize
+viz = WorkoutVisualizer(filtered_df, bw_df, phases_df)
+
+# Logic for Streak: Current vs Max
+# 1. Historical Year
+is_historical = False
+current_year_val = datetime.date.today().year
+
+if filter_year and filter_year < current_year_val:
+    is_historical = True
+elif filter_routine:
+    # Check if routine is "active" (last workout within 14 days)
+    # OR simpler: check if the routine's last workout is significantly in the past
+    last_routine_date = filtered_df['start_time'].max().date()
+    days_since_last = (datetime.date.today() - last_routine_date).days
+    if days_since_last > 14: # Threshold for "Old Routine"
+        is_historical = True
+
+if is_historical:
+    streak_val = calculate_max_streak(filtered_df)
+    streak_label = "Max Streak"
+else:
+    streak_val = calculate_current_streak(filtered_df)
+    streak_label = "Weekly Streak"
 
 # Main Dashboard
 # Main Dashboard
@@ -196,7 +231,7 @@ col5, col6, col7, col8 = st.columns(4)
 col5.metric("Total Reps", f"{total_reps}")
 col6.metric("Avg Sets/Workout", f"{avg_sets_workout:.1f}")
 col7.metric("Avg Duration", f"{avg_duration_mins:.0f} min")
-col8.metric("Weekly Streak", f"{streak} 🔥")
+col8.metric(streak_label, f"{streak_val} 🔥")
 
 # Check for unknown exercises
 unknown_exercises = filtered_df[filtered_df['muscle_group'] == 'unknown']['exercise_title'].unique()
