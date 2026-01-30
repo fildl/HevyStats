@@ -1,16 +1,26 @@
 # HevyStats
 
-**HevyStats** is a personal analytics dashboard for [Hevy](https://hevy.com/) workout data. It provides insights into your training volume, muscle balance, and progress over time.
+**HevyStats** is a personal analytics dashboard for [Hevy](https://hevy.com/) workout data. It converts your export data into actionable insights, focusing on training consistency, volume progression, and muscle balance.
 
-## Features (Planned)
+## Key Features
 
-- 📊 **Interactive Dashboard**: Built with Streamlit and Plotly.
-- 📉 **Volume Analysis**: Tracks volume (kg * reps) handling:
-    - Standard weights
-    - Dumbbells (2x weight)
-    - Assisted exercises (Bodyweight - Assistance)
-- 💪 **Muscle Group Breakdown**: Visualizes training balance across major muscle groups.
-- ⚖️ **Contextual Analysis**: Correlates training volume with body weight and bulking/cutting phases.
+### 📊 Dashboard & KPIs
+- **Smart KPIs**: Tracks Total Volume, Workouts, Total Sets, Reps, and Training Duration.
+- **🔥Dynamic Streak Tracking**: 
+    - Shows **Weekly Streak** for active periods.
+    - Shows **Max Streak** for historical splits or past years.
+
+### 📅 Consistency & Trends
+- **Workout Consistency Heatmap**: An heatmap displaying daily activity (intensity based on Set Count).
+- **Bodyweight & Phases Overlay**: Correlates training volume with bodyweight trends and bulking/cutting phases.
+
+### 🕸️ Muscle Balance Strategy
+- **Radar Chart Analysis**: Replaces traditional pie charts to show set distribution across muscle groups.
+- **Historical Comparison**: Compares your current routine's focus against your historical average or previous routine.
+
+### 📈 Deep Dive Analysis
+- **Exercise Analysis**: Drill down into specific exercises with "Volume Progression" charts.
+    - Gym-dependent tracking for machine exercises.
 
 ## Installation
 
@@ -27,16 +37,15 @@
 
 ## Usage
 
-1.  **Prepare Data**:
-    - Export your data from the Hevy app as a CSV.
-    - Place `workout_data.csv` in the `data/` directory.
-    - Ensure `exercise_database.json` and other auxiliary files are present in `data/`.
+1.  **Data Preparation**:
+    - Export your data from Hevy (`workouts.csv`) and place it in the `data/` folder.
+    - Maintain `exercise_database.json` for mapping exercises to muscle groups.
 
-2.  **Run the App**:
+2.  **Run the Dashboard**:
     ```bash
     streamlit run app.py
     ```
 
 ## License
 
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+This project is licensed under the MIT License.
