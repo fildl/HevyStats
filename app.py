@@ -263,7 +263,7 @@ render_group_tab(6, 'core')
 st.divider()
 
 # Muscle Balance Radar
-st.subheader("Muscle Balance Strategy 🕸️")
+st.subheader("Muscle Balance 🕸️")
 
 # Comparison Datasets
 comparison_dfs = []
@@ -362,7 +362,12 @@ else:
         st.write("") 
         st.button("⬅️", key="btn_prev_group", on_click=prev_group, help="Previous Group")
     with col_g2:
-        selected_group = st.selectbox("Select Muscle Group", available_groups, key='selected_group_nav')
+        selected_group = st.selectbox(
+            "Select Muscle Group", 
+            available_groups, 
+            key='selected_group_nav',
+            format_func=lambda x: x.replace('_', ' ').title()
+        )
     with col_g3:
         st.write("") 
         st.write("") 

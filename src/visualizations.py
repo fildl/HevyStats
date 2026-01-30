@@ -30,17 +30,24 @@ class WorkoutVisualizer:
         monthly_vol = plot_data.groupby(['month_date', 'major_group'])['volume'].sum().reset_index()
         monthly_vol['volume_k'] = monthly_vol['volume'] / 1000.0
 
+        # [MODIFIED] Create Display Column for cleaner legend
+        # We need a new color map for the formatted names
+        monthly_vol['display_group'] = monthly_vol['major_group'].apply(lambda x: x.replace('_', ' ').title())
+        
+        display_color_map = {k.replace('_', ' ').title(): v for k, v in MUSCLE_GROUP_COLORS.items()}
+        display_orders = [g.replace('_', ' ').title() for g in MUSCLE_GROUP_ORDER]
+
         # --- 2. Create Stacked Bar Chart ---
         fig = px.bar(
             monthly_vol,
             x='month_date',
             y='volume_k',
-            color='major_group',
+            color='display_group',
             title='Monthly Training Volume (tonnes) & Bodyweight (kg)',
-            color_discrete_map=MUSCLE_GROUP_COLORS,
-            category_orders={'major_group': MUSCLE_GROUP_ORDER},
+            color_discrete_map=display_color_map,
+            category_orders={'display_group': display_orders},
             text='volume_k',
-            labels={'volume_k': 'Volume', 'major_group': 'Group', 'month_date': 'Date'}
+            labels={'volume_k': 'Volume', 'display_group': 'Group', 'month_date': 'Date'}
         )
 
         fig.update_traces(
@@ -168,16 +175,20 @@ class WorkoutVisualizer:
         monthly_vol = plot_data.groupby(['month_date', 'muscle_group'])['volume'].sum().reset_index()
         monthly_vol['volume_k'] = monthly_vol['volume'] / 1000.0
 
+        # [MODIFIED] Create Display Column
+        monthly_vol['display_muscle'] = monthly_vol['muscle_group'].apply(lambda x: x.replace('_', ' ').title())
+        display_color_map = {k.replace('_', ' ').title(): v for k, v in MUSCLE_GROUP_COLORS.items()}
+
         # --- 2. Create Stacked Bar Chart ---
         fig = px.bar(
             monthly_vol,
             x='month_date',
             y='volume_k',
-            color='muscle_group',
+            color='display_muscle',
             title='Monthly Volume by Specific Muscle (tonnes)',
-            color_discrete_map=MUSCLE_GROUP_COLORS,
+            color_discrete_map=display_color_map,
             text='volume_k',
-            labels={'volume_k': 'Volume', 'muscle_group': 'Muscle', 'month_date': 'Date'}
+            labels={'volume_k': 'Volume', 'display_muscle': 'Muscle', 'month_date': 'Date'}
             # We don't enforce a strict order here as there are many specific muscles,
             # but Plotly usually sorts by value or name.
         )
@@ -307,19 +318,25 @@ class WorkoutVisualizer:
         merged['avg_vol_k'] = (merged['volume'] / merged['workout_count']) / 1000.0
         
         # --- 2. Plot ---
-        color_map = MUSCLE_GROUP_COLORS
-        orders = {group_col: MUSCLE_GROUP_ORDER} if not filter_group else {} # Use strict order for Major
+        # [MODIFIED] Create Display Column
+        merged['display_group'] = merged[group_col].apply(lambda x: x.replace('_', ' ').title())
+        display_color_map = {k.replace('_', ' ').title(): v for k, v in MUSCLE_GROUP_COLORS.items()}
+        
+        orders = {}
+        if not filter_group:
+             display_orders = [g.replace('_', ' ').title() for g in MUSCLE_GROUP_ORDER]
+             orders = {'display_group': display_orders}
 
         fig = px.bar(
             merged,
             x='month_date',
             y='avg_vol_k',
-            color=group_col,
+            color='display_group',
             title='Avg Volume per Workout (tonnes) & Bodyweight (kg)',
-            color_discrete_map=color_map,
+            color_discrete_map=display_color_map,
             category_orders=orders,
             text='avg_vol_k',
-            labels={'avg_vol_k': 'Average Volume', group_col: 'Group', 'month_date': 'Date'}
+            labels={'avg_vol_k': 'Average Volume', 'display_group': 'Group', 'month_date': 'Date'}
         )
         
         fig.update_traces(
@@ -561,6 +578,7 @@ class WorkoutVisualizer:
         # We need a fixed axis for radar
         # [MODIFIED] Exclude 'unknown' from axes
         axes = [g for g in MUSCLE_GROUP_ORDER if g != 'unknown']
+        formatted_axes = [g.replace('_', ' ').title() for g in axes]
         
         # [MODIFIED] Pre-calculate current values to track max for scaling
         values_curr = [current_dist.get(g, 0) for g in axes]
@@ -583,7 +601,7 @@ class WorkoutVisualizer:
                     max_val_found = max(max_val_found, max(values))
                 # Close the loop
                 values_closed = values + [values[0]]
-                axes_closed = axes + [axes[0]]
+                axes_closed = formatted_axes + [formatted_axes[0]]
                 
                 # Handle color for fill (make it more transparent)
                 # If it's already rgba, we want to lower the alpha.
@@ -623,7 +641,7 @@ class WorkoutVisualizer:
         # Add Current Trace
         # values_curr is already calculated above
         values_curr_closed = values_curr + [values_curr[0]]
-        axes_closed = axes + [axes[0]]
+        axes_closed = formatted_axes + [formatted_axes[0]]
         
         traces.append(go.Scatterpolar(
             r=values_curr_closed,
