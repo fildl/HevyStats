@@ -9,8 +9,10 @@ def calculate_current_streak(df):
     if df is None or df.empty:
         return 0
     
-    current_date = datetime.date.today()
-    current_year, current_week, _ = current_date.isocalendar()
+    # Use the last workout date in the dataframe as the reference point
+    # This allows calculating streak for historical periods
+    last_workout_date = df['start_time'].max().date()
+    current_year, current_week, _ = last_workout_date.isocalendar()
     
     # Get unique (year, week) pairs from data
     # We use a set for O(1) lookups during traversal, but we need sorted list for gap check
@@ -21,6 +23,7 @@ def calculate_current_streak(df):
     if not unique_weeks:
         return 0
     
+    # The "latest" week in the data (should match current_year, current_week usually)
     last_year, last_week = unique_weeks[0]
     
     # Helper to calc week difference
@@ -29,11 +32,13 @@ def calculate_current_streak(df):
         d2 = datetime.datetime.fromisocalendar(y2, w2, 1)
         return abs((d1 - d2).days) // 7
         
-    diff_from_now = weeks_diff(current_year, current_week, last_year, last_week)
+    # Check if the streak is "connected" to the reference week 
+    # (should be 0 because we set reference to max date)
+    diff_from_ref = weeks_diff(current_year, current_week, last_year, last_week)
     
-    # If the last workout was > 1 week ago (i.e. 2+ weeks gap), streak is 0
-    # Note: If diff is 0 (this week) or 1 (last week), streak is active.
-    if diff_from_now > 1:
+    # If there is a gap between the reference date and the last recorded week (unlikely if derived from max)
+    # But just in case logic changes:
+    if diff_from_ref > 1:
         return 0
         
     streak = 1
@@ -49,6 +54,8 @@ def calculate_current_streak(df):
             break
             
     return streak
+
+
 
 # Page Config
 st.set_page_config(page_title="HevyStats", page_icon="🏋️‍♂️", layout="wide")
@@ -109,8 +116,8 @@ if filter_routine:
 # Visualizer
 viz = WorkoutVisualizer(filtered_df, bw_df, phases_df)
 
-# Calculate Streak (using full original dataframe to ignore filters)
-streak = calculate_current_streak(df)
+# Calculate Streak (using filtered dataframe)
+streak = calculate_current_streak(filtered_df)
 
 # Main Dashboard
 # Main Dashboard

@@ -694,18 +694,18 @@ class WorkoutVisualizer:
         if plot_data.empty:
             return None
 
-        # Aggregate per day
+        # Aggregate per day - Use SET COUNT instead of Volume
         plot_data['date'] = plot_data['start_time'].dt.date
-        daily_vol = plot_data.groupby('date')['volume'].sum().reset_index()
+        daily_metric = plot_data.groupby('date').size().reset_index(name='sets')
         
         # Create full date range to show empty days as grey/empty
-        min_date = daily_vol['date'].min()
-        max_date = daily_vol['date'].max()
+        min_date = daily_metric['date'].min()
+        max_date = daily_metric['date'].max()
         all_dates = pd.date_range(start=min_date, end=max_date, freq='D').date
         
         # Merge with full range
         full_df = pd.DataFrame({'date': all_dates})
-        full_df = pd.merge(full_df, daily_vol, on='date', how='left').fillna(0)
+        full_df = pd.merge(full_df, daily_metric, on='date', how='left').fillna(0)
         
         # Prepare Coordinates
         # y: Day of Week (Monday=0, Sunday=6) - We want Mon at top (0) or Sun at top?
@@ -728,12 +728,12 @@ class WorkoutVisualizer:
         fig = go.Figure(data=go.Heatmap(
             x=full_df['week_start'],
             y=full_df['day_name'], # Or just weekday index
-            z=full_df['volume'],
+            z=full_df['sets'],
             colorscale='Greens',
             showscale=False, # cleaner look? or True for reference
             xgap=2, # separate cells
             ygap=2,
-            hovertemplate='<b>%{y}</b>, %{x}<br>Volume: %{z:.0f} kg<extra></extra>'
+            hovertemplate='<b>%{y}</b>, %{x}<br>Sets: %{z:.0f}<extra></extra>'
         ))
 
         fig.update_layout(
