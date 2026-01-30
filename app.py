@@ -202,8 +202,7 @@ if len(unknown_exercises) > 0:
 st.divider()
 
 # Consistency Heatmap
-heatmap_title = f"Workout Consistency ({filter_routine if filter_routine else 'All Splits'})"
-st.subheader(heatmap_title)
+st.subheader("Workout Consistency 📅")
 fig_heatmap = viz.create_consistency_heatmap(year=filter_year)
 if fig_heatmap:
     st.plotly_chart(fig_heatmap, width="stretch")
