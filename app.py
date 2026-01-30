@@ -213,7 +213,7 @@ else:
 st.divider()
 
 # Charts
-st.subheader("Training Volume History")
+st.subheader("Training Volume History 📊")
 
 # Metric Selection
 metric = st.radio(
@@ -334,7 +334,39 @@ else:
     
     # 1. Select Group (Use specific muscle group directly)
     available_groups = sorted(valid_df['muscle_group'].unique())
-    selected_group = st.selectbox("Select Muscle Group", available_groups)
+    
+    # Initialize Session State using available_groups[0] if needed
+    if 'selected_group_nav' not in st.session_state:
+        st.session_state.selected_group_nav = available_groups[0]
+    elif st.session_state.selected_group_nav not in available_groups:
+        st.session_state.selected_group_nav = available_groups[0]
+
+    def prev_group():
+        current = st.session_state.selected_group_nav
+        if current in available_groups:
+            curr_idx = available_groups.index(current)
+            new_idx = (curr_idx - 1) % len(available_groups)
+            st.session_state.selected_group_nav = available_groups[new_idx]
+
+    def next_group():
+        current = st.session_state.selected_group_nav
+        if current in available_groups:
+            curr_idx = available_groups.index(current)
+            new_idx = (curr_idx + 1) % len(available_groups)
+            st.session_state.selected_group_nav = available_groups[new_idx]
+
+    # Layout: [ < ] [ Selectbox ] [ > ]
+    col_g1, col_g2, col_g3 = st.columns([1, 10, 1])
+    with col_g1:
+        st.write("") 
+        st.write("") 
+        st.button("⬅️", key="btn_prev_group", on_click=prev_group, help="Previous Group")
+    with col_g2:
+        selected_group = st.selectbox("Select Muscle Group", available_groups, key='selected_group_nav')
+    with col_g3:
+        st.write("") 
+        st.write("") 
+        st.button("➡️", key="btn_next_group", on_click=next_group, help="Next Group")
     
     # 2. Select Exercise (Filtered by Group)
     exercises_in_group = valid_df[valid_df['muscle_group'] == selected_group]['exercise_title'].sort_values().tolist()

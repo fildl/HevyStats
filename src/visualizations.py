@@ -39,10 +39,16 @@ class WorkoutVisualizer:
             title='Monthly Training Volume (tonnes) & Bodyweight (kg)',
             color_discrete_map=MUSCLE_GROUP_COLORS,
             category_orders={'major_group': MUSCLE_GROUP_ORDER},
-            text='volume_k'
+            text='volume_k',
+            labels={'volume_k': 'Volume', 'major_group': 'Group', 'month_date': 'Date'}
         )
 
-        fig.update_traces(texttemplate='%{text:.1f}', textposition='inside', textfont_size=16)
+        fig.update_traces(
+            texttemplate='%{text:.1f}', 
+            textposition='inside', 
+            textfont_size=16,
+            hovertemplate='%{y:.1f} t'
+        )
 
         # --- 3. Bodyweight Overlay (Monthly Average) ---
         if self.bodyweight_df is not None and not self.bodyweight_df.empty:
@@ -93,7 +99,8 @@ class WorkoutVisualizer:
                             name=f"BW ({phase_name})",
                             mode='markers',
                             marker=dict(color=color, size=8, line=dict(width=1, color='white')),
-                            yaxis='y2'
+                            yaxis='y2',
+                            hovertemplate='%{y:.1f} kg'
                         )
                     )
 
@@ -169,12 +176,18 @@ class WorkoutVisualizer:
             color='muscle_group',
             title='Monthly Volume by Specific Muscle (tonnes)',
             color_discrete_map=MUSCLE_GROUP_COLORS,
-            text='volume_k'
+            text='volume_k',
+            labels={'volume_k': 'Volume', 'muscle_group': 'Muscle', 'month_date': 'Date'}
             # We don't enforce a strict order here as there are many specific muscles,
             # but Plotly usually sorts by value or name.
         )
         
-        fig.update_traces(texttemplate='%{text:.1f}', textposition='inside', textfont_size=16)
+        fig.update_traces(
+            texttemplate='%{text:.1f}', 
+            textposition='inside', 
+            textfont_size=16,
+            hovertemplate='%{y:.1f} t'
+        )
         
         # --- 3. Bodyweight Overlay (Phase Colored) ---
         if self.bodyweight_df is not None and not self.bodyweight_df.empty and self.phases_data is not None:
@@ -214,7 +227,8 @@ class WorkoutVisualizer:
                         name=f"BW ({phase_name})",
                         mode='markers',
                         marker=dict(color=color, size=8, line=dict(width=1, color='white')),
-                        yaxis='y2'
+                        yaxis='y2',
+                        hovertemplate='%{y:.1f} kg'
                     ))
 
                 fig.update_layout(
@@ -304,10 +318,16 @@ class WorkoutVisualizer:
             title='Avg Volume per Workout (tonnes) & Bodyweight (kg)',
             color_discrete_map=color_map,
             category_orders=orders,
-            text='avg_vol_k'
+            text='avg_vol_k',
+            labels={'avg_vol_k': 'Average Volume', group_col: 'Group', 'month_date': 'Date'}
         )
         
-        fig.update_traces(texttemplate='%{text:.1f}', textposition='inside', textfont_size=16)
+        fig.update_traces(
+            texttemplate='%{text:.1f}', 
+            textposition='inside', 
+            textfont_size=16,
+            hovertemplate='%{y:.1f} t'
+        )
 
         # --- 3. Bodyweight Overlay (Phase Colored) ---
         if self.bodyweight_df is not None and not self.bodyweight_df.empty and self.phases_data is not None:
@@ -371,7 +391,8 @@ class WorkoutVisualizer:
                             # If we use lines, it connects disjoint months of same phase (e.g. Bulk in Jan, Bulk in Dec -> Line across).
                             # So strictly speaking, we should just use Markers for the phase indicator on top of the generic line.
                             marker=dict(color=color, size=8, line=dict(width=1, color='white')),
-                            yaxis='y2'
+                            yaxis='y2',
+                            hovertemplate='%{y:.1f} kg'
                         )
                     )
 
@@ -456,7 +477,8 @@ class WorkoutVisualizer:
             y=session_vol['volume'],
             mode='markers',
             name='Session Volume',
-            marker=dict(color='#BDADEA', size=8, opacity=0.6)
+            marker=dict(color='#BDADEA', size=8, opacity=0.6),
+            hovertemplate='Volume: %{y:.1f} kg<extra></extra>'
         ))
         
         # 2. Record Progression (Line)
@@ -497,6 +519,7 @@ class WorkoutVisualizer:
         fig.update_layout(
             title=f"Volume Progression: {exercise_name}",
             xaxis_title=None,
+            xaxis=dict(hoverformat='%d %b %Y'),
             yaxis_title='Volume (kg)',
             hovermode='x unified',
             showlegend=True,
@@ -539,6 +562,10 @@ class WorkoutVisualizer:
         # [MODIFIED] Exclude 'unknown' from axes
         axes = [g for g in MUSCLE_GROUP_ORDER if g != 'unknown']
         
+        # [MODIFIED] Pre-calculate current values to track max for scaling
+        values_curr = [current_dist.get(g, 0) for g in axes]
+        max_val_found = max(values_curr) if values_curr else 0
+        
         # Prepare traces
         traces = []
         
@@ -552,6 +579,8 @@ class WorkoutVisualizer:
                 dist = get_distribution(comp_df)
                 # Reindex to ensure order and fill missing with 0
                 values = [dist.get(g, 0) for g in axes]
+                if values:
+                    max_val_found = max(max_val_found, max(values))
                 # Close the loop
                 values_closed = values + [values[0]]
                 axes_closed = axes + [axes[0]]
@@ -592,7 +621,7 @@ class WorkoutVisualizer:
                 ))
 
         # Add Current Trace
-        values_curr = [current_dist.get(g, 0) for g in axes]
+        # values_curr is already calculated above
         values_curr_closed = values_curr + [values_curr[0]]
         axes_closed = axes + [axes[0]]
         
@@ -611,7 +640,7 @@ class WorkoutVisualizer:
             polar=dict(
                 radialaxis=dict(
                     visible=True,
-                    range=[0, max([max(values_curr)] + [30])], # Dynamic max but at least 30%
+                    range=[0, max(max_val_found, 30)], # Dynamic max but at least 30%
                     ticksuffix='%',
                     showticklabels=True
                 )
